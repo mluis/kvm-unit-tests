@@ -533,9 +533,19 @@ static void test_hptimer(void)
        report_prefix_pop();
 }
 
-static void test_init(void)
+static void test_init(bool nvhe)
 {
 	assert(TIMER_PTIMER_IRQ != -1 && TIMER_VTIMER_IRQ != -1);
+        u64 hcr;
+
+        if (nvhe) {
+                disable_vhe();
+                hcr = read_sysreg(hcr_el2);
+                /* KVM doesn't support different IMO/FMO settings */
+                hcr |= HCR_EL2_IMO | HCR_EL2_FMO;
+                write_sysreg(hcr, hcr_el2);
+                isb();
+        }
 
         if (current_el == CurrentEL_EL1) {
                 vtimer = &vtimer_info;
@@ -543,6 +553,13 @@ static void test_init(void)
         } else {
                 vtimer = &vtimer_info_vhe;
                 ptimer = &ptimer_info_vhe;
+                if (nvhe) {
+                        vtimer = &vtimer_info;
+                        ptimer = &ptimer_info;
+                } else {
+                        vtimer = &vtimer_info_vhe;
+                        ptimer = &ptimer_info_vhe;
+                }
                 hvtimer = &hvtimer_info;
                 hptimer = &hptimer_info;
         }
@@ -597,10 +614,20 @@ static void print_timer_info(void)
 int main(int argc, char **argv)
 {
 	int i;
+        bool nvhe = false;
 
         current_el = current_level();
 
-	test_init();
+        if (argc > 1 && strcmp(argv[1], "nvhe") == 0) {
+                if (current_el == CurrentEL_EL1)
+                        report_info("Skipping EL2 tests. Boot at EL2 to enable.");
+                else
+                        nvhe = true;
+                argv = &argv[1];
+                argc--;
+        }
+ 
+        test_init(nvhe);
 
 	print_timer_info();
 

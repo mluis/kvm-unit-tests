@@ -108,6 +108,8 @@ asm(
 #define HCR_EL2_TGE            (1 << 27)
 #define HCR_EL2_E2H_SHIFT      34
 #define HCR_EL2_E2H            (_UL(1) << 34)
+#define HCR_EL2_IMO            (1 << 4)
+#define HCR_EL2_FMO            (1 << 3)
 
 #define SCTLR_EL2_RES1         (3 << 28 | 3 << 22 | 1 << 18 |  \
                                 1 << 16 | 1 << 11 | 3 << 4)
