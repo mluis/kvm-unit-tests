@@ -405,6 +405,14 @@ static void check_el2_cpu(void *data __unused)
        report(current_level() == CurrentEL_EL2, "CPU(%3d) Running at EL2", cpu);
        report(vhe_supported() && vhe_enabled(),
                        "CPU(%3d) VHE supported and enabled", cpu);
+
+       disable_vhe();
+       report(current_level() == CurrentEL_EL2 && vhe_supported() && !vhe_enabled(),
+                       "CPU(%3d) VHE disable", cpu);
+
+       enable_vhe();
+       report(current_level() == CurrentEL_EL2 && vhe_supported() && vhe_enabled(),
+                       "CPU(%3d) VHE re-enable", cpu);
 }
 
 static void check_el2(void)
