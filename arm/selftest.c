@@ -230,6 +230,12 @@ static void user_psci_system_off(struct pt_regs *regs)
 {
 	__user_psci_system_off();
 }
+
+static void check_el2(void)
+{
+       report(false, "EL2 only available on arm64");
+}
+
 #elif defined(__aarch64__)
 static unsigned long expected_level;
 
@@ -382,6 +388,30 @@ static void user_psci_system_off(struct pt_regs *regs, unsigned int esr)
 {
 	__user_psci_system_off();
 }
+
+#define ID_AA64MMFR1_VHE_MASK          (0xf << 8)
+#define ID_AA64MMFR1_VHE_SUPPORTED     (1 << 8)
+static bool vhe_supported(void)
+{
+       u64 aa64mmfr1 = read_sysreg(id_aa64mmfr1_el1);
+
+       return (aa64mmfr1 & ID_AA64MMFR1_VHE_MASK) == ID_AA64MMFR1_VHE_SUPPORTED;
+}
+
+static void check_el2_cpu(void *data __unused)
+{
+       int cpu = smp_processor_id();
+
+       report(current_level() == CurrentEL_EL2, "CPU(%3d) Running at EL2", cpu);
+       report(vhe_supported() && vhe_enabled(),
+                       "CPU(%3d) VHE supported and enabled", cpu);
+}
+
+static void check_el2(void)
+{
+       on_cpus(check_el2_cpu, NULL);
+}
+
 #endif
 
 static void check_vectors(void *arg __unused)
@@ -460,6 +490,9 @@ int main(int argc, char **argv)
 		smp_rmb();		/* Paired with wmb in cpu_report(). */
 		report(cpumask_full(&valid), "MPIDR test on all CPUs");
 		report_info("%d CPUs reported back", nr_cpus);
+        } else if (strcmp(argv[1], "el2") == 0) {
+ 
+                check_el2();
 
 	} else {
 		printf("Unknown subtest\n");

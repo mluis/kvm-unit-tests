@@ -137,5 +137,11 @@ static inline bool system_supports_granule(size_t granule)
 	return ((mmfr0 >> shift) & 0xf) == val;
 }
 
+static inline bool vhe_enabled(void)
+{
+       unsigned long hcr = read_sysreg(hcr_el2);
+       return (hcr & HCR_EL2_E2H) && (hcr & HCR_EL2_TGE);
+}
+
 #endif /* !__ASSEMBLY__ */
 #endif /* _ASMARM64_PROCESSOR_H_ */
