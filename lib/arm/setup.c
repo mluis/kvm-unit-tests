@@ -234,6 +234,19 @@ static void timer_save_state(void)
 	assert(fdt32_to_cpu(data[6]) == 1 /* PPI */);
 	__timer_state.vtimer.irq = fdt32_to_cpu(data[7]);
 	__timer_state.vtimer.irq_flags = fdt32_to_cpu(data[8]);
+
+        if (current_level() == CurrentEL_EL2) {
+               assert(fdt32_to_cpu(data[9]) == 1);
+               __timer_state.hptimer.irq = fdt32_to_cpu(data[10]);
+               __timer_state.hptimer.irq_flags = fdt32_to_cpu(data[11]);
+               /* The hvtimer is not in the DT, assume KVM default. */
+               __timer_state.hvtimer.irq = 28;
+               /*
+                * With VHE, accesses to the vtimer are redirected to the
+                * hvtimer. They should have the same interrupt properties.
+                */
+               __timer_state.hvtimer.irq_flags = __timer_state.vtimer.irq_flags;
+       }
 }
 
 void setup(const void *fdt, phys_addr_t freemem_start)

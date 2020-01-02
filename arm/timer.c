@@ -17,6 +17,8 @@
 
 static bool ptimer_unsupported;
 
+static int current_el;
+
 static void ptimer_unsupported_handler(struct pt_regs *regs, unsigned int esr)
 {
 	ptimer_unsupported = true;
@@ -161,6 +163,68 @@ static void write_ptimer_ctl_vhe(u64 val)
        write_sysreg_s(val, SYS_CNTP_CTL_EL02);
 }
 
+static u64 read_hvtimer_cval(void)
+{
+       return read_sysreg_s(SYS_CNTHV_CVAL_EL2);
+}
+
+static void write_hvtimer_cval(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTHV_CVAL_EL2);
+}
+
+static s32 read_hvtimer_tval(void)
+{
+       return read_sysreg_s(SYS_CNTHV_TVAL_EL2);
+}
+
+static void write_hvtimer_tval(s32 val)
+{
+       write_sysreg_s(val, SYS_CNTHV_TVAL_EL2);
+}
+
+static u64 read_hvtimer_ctl(void)
+{
+       return read_sysreg_s(SYS_CNTHV_CTL_EL2);
+}
+
+static void write_hvtimer_ctl(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTHV_CTL_EL2);
+}
+
+static u64 read_hptimer_cval(void)
+{
+       return read_sysreg_s(SYS_CNTHP_CVAL_EL2);
+}
+
+static void write_hptimer_cval(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTHP_CVAL_EL2);
+}
+
+static s32 read_hptimer_tval(void)
+{
+       return read_sysreg_s(SYS_CNTHP_TVAL_EL2);
+}
+
+static void write_hptimer_tval(s32 val)
+{
+       write_sysreg_s(val, SYS_CNTHP_TVAL_EL2);
+}
+
+static u64 read_hptimer_ctl(void)
+{
+       return read_sysreg_s(SYS_CNTHP_CTL_EL2);
+}
+
+static void write_hptimer_ctl(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTHP_CTL_EL2);
+}
+
+
+
 struct timer_info {
 	u32 irq;
 	volatile bool irq_received;
@@ -217,7 +281,29 @@ static struct timer_info ptimer_info_vhe = {
        .write_ctl = write_ptimer_ctl_vhe,
 };
 
-static struct timer_info *vtimer, *ptimer;
+static struct timer_info hvtimer_info = {
+       .irq_received = false,
+       .read_counter = read_vtimer_counter,
+       .read_cval = read_hvtimer_cval,
+       .write_cval = write_hvtimer_cval,
+       .read_tval = read_hvtimer_tval,
+       .write_tval = write_hvtimer_tval,
+       .read_ctl = read_hvtimer_ctl,
+       .write_ctl = write_hvtimer_ctl,
+};
+
+static struct timer_info hptimer_info = {
+       .irq_received = false,
+       .read_counter = read_ptimer_counter,
+       .read_cval = read_hptimer_cval,
+       .write_cval = write_hptimer_cval,
+       .read_tval = read_hptimer_tval,
+       .write_tval = write_hptimer_tval,
+       .read_ctl = read_hptimer_ctl,
+       .write_ctl = write_hptimer_ctl,
+};
+
+static struct timer_info *vtimer, *ptimer, *hvtimer, *hptimer;
 
 static void set_timer_irq_enabled(struct timer_info *info, bool enabled)
 {
@@ -239,6 +325,10 @@ static void irq_handler(struct pt_regs *regs)
                 info = vtimer;
         } else if (irqnr == PPI(ptimer->irq)) {
                 info = ptimer;
+        } else if (current_el == CurrentEL_EL2 && irqnr == PPI(hptimer->irq)) {
+                info = hptimer;
+        } else if (current_el == CurrentEL_EL2 && irqnr == PPI(hvtimer->irq)) {
+                info = hvtimer;
 	} else {
 		if (irqnr != GICC_INT_SPURIOUS)
 			gic_write_eoir(irqstat);
@@ -429,21 +519,38 @@ static void test_ptimer(void)
 	report_prefix_pop();
 }
 
+static void test_hvtimer(void)
+{
+       report_prefix_push("hvtimer-busy-loop");
+       test_timer(hvtimer);
+       report_prefix_pop();
+}
+
+static void test_hptimer(void)
+{
+       report_prefix_push("hptimer-busy-loop");
+       test_timer(hptimer);
+       report_prefix_pop();
+}
+
 static void test_init(void)
 {
 	assert(TIMER_PTIMER_IRQ != -1 && TIMER_VTIMER_IRQ != -1);
 
-        if (current_level() == CurrentEL_EL1) {
+        if (current_el == CurrentEL_EL1) {
                 vtimer = &vtimer_info;
                 ptimer = &ptimer_info;
         } else {
                 vtimer = &vtimer_info_vhe;
                 ptimer = &ptimer_info_vhe;
+                hvtimer = &hvtimer_info;
+                hptimer = &hptimer_info;
         }
 
 
 	ptimer->irq = TIMER_PTIMER_IRQ;
 	vtimer->irq = TIMER_VTIMER_IRQ;
+
 
 	install_exception_handler(EL1H_SYNC, ESR_EL1_EC_UNKNOWN, ptimer_unsupported_handler);
 	ptimer->read_ctl();
@@ -477,11 +584,21 @@ static void print_timer_info(void)
 	printf("CNTVCT_EL0   : 0x%016lx\n", vtimer->read_counter());
 	printf("CNTV_CTL_EL0 : 0x%016lx\n", vtimer->read_ctl());
 	printf("CNTV_CVAL_EL0: 0x%016lx\n", vtimer->read_cval());
+
+        if (current_el == CurrentEL_EL2) {
+                printf("CNTHP_CTL_EL0 : 0x%016lx\n", hptimer->read_ctl());
+                printf("CNTHP_CVAL_EL0: 0x%016lx\n", hptimer->read_cval());
+ 
+                printf("CNTHV_CTL_EL0 : 0x%016lx\n", hvtimer->read_ctl());
+                printf("CNTHV_CVAL_EL0: 0x%016lx\n", hvtimer->read_cval());
+        }
 }
 
 int main(int argc, char **argv)
 {
 	int i;
+
+        current_el = current_level();
 
 	test_init();
 
@@ -490,6 +607,10 @@ int main(int argc, char **argv)
 	if (argc == 1) {
 		test_vtimer();
 		test_ptimer();
+                if (current_el == CurrentEL_EL2) {
+                        test_hvtimer();
+                        test_hptimer();
+                }
 	}
 
 	for (i = 1; i < argc; ++i) {
@@ -497,6 +618,18 @@ int main(int argc, char **argv)
 			test_vtimer();
 		if (strcmp(argv[i], "ptimer") == 0)
 			test_ptimer();
+                if (strcmp(argv[i], "hvtimer") == 0) {
+                        if (current_el == CurrentEL_EL1)
+                                report_info("Skipping hvtimer tests. Boot at EL2 to enable.");
+                        else
+                                test_hvtimer();
+                }
+                if (strcmp(argv[i], "hptimer") == 0) {
+                        if (current_el == CurrentEL_EL1)
+                                report_info("Skipping hptimer tests. Boot at EL2 to enable.");
+                        else
+                                test_hptimer();
+                }
 	}
 
 	return report_summary();
