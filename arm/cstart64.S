@@ -147,6 +147,13 @@ psci_invoke_smc:
 	smc	#0
 	ret
 
+exceptions_init_nvhe:
+       adrp    x0, vector_table_nvhe
+       add     x0, x0, :lo12:vector_table_nvhe
+       msr     vbar_el2, x0
+       isb
+       ret
+
 get_mmu_off:
 	adrp	x0, auxinfo
 	ldr	x0, [x0, :lo12:auxinfo + 8]
@@ -245,6 +252,7 @@ asm_mmu_enable:
 		     TCR_EPD1
 	mrs	x2, id_aa64mmfr0_el1
 	bfi	x1, x2, #32, #3
+        bfi     x1, x2, #TCR_EL1_IPS_SHIFT, #3
 	msr	tcr_el1, x1
 
 	/* MAIR */
@@ -271,20 +279,102 @@ asm_mmu_enable:
 
 	ret
 
+asm_mmu_enable_nvhe:
+       tlbi    alle2
+       dsb     nsh
+
+        /* TCR */
+       ldr     x1, =TCR_EL2_RES1 |                     \
+                    TCR_T0SZ(VA_BITS) |                \
+                    TCR_TG0_64K |                      \
+                    TCR_IRGN0_WBWA | TCR_ORGN0_WBWA |  \
+                    TCR_SH0_IS
+       mrs     x2, id_aa64mmfr0_el1
+       bfi     x1, x2, #TCR_EL2_PS_SHIFT, #3
+       msr     tcr_el2, x1
+
+       /* Same MAIR and TTBR0 as in VHE mode */
+       /* MAIR */
+       ldr	x1, =MAIR(0x00, MT_DEVICE_nGnRnE) |	\
+		     MAIR(0x04, MT_DEVICE_nGnRE) |	\
+		     MAIR(0x0c, MT_DEVICE_GRE) |	\
+		     MAIR(0x44, MT_NORMAL_NC) |		\
+		     MAIR(0xff, MT_NORMAL) |	        \
+		     MAIR(0xbb, MT_NORMAL_WT) |         \
+		     MAIR(0x08, MT_DEVICE_nGRE)
+       msr	mair_el2, x1
+
+       /* TTBR0 */
+       msr	ttbr0_el1, x0
+
+       isb
+
+       /* SCTLR */
+       ldr     x1, =SCTLR_EL2_RES1 |                   \
+                    SCTLR_EL2_C |                      \
+                    SCTLR_EL2_I |                      \
+                    SCTLR_EL2_M
+       msr     sctlr_el2, x1
+       isb
+
+       ret
+
+clean_inval_cache:
+       adrp    x0, __phys_offset
+       ldr     x0, [x0, :lo12:__phys_offset]
+       adrp    x1, __phys_end
+       ldr     x1, [x1, :lo12:__phys_end]
+       dcache_by_line_op civac, sy, x0, x1, x2, x3
+       isb
+       ret
+
 .globl asm_mmu_disable
 asm_mmu_disable:
 	mrs	x0, sctlr_el1
 	bic	x0, x0, SCTLR_EL1_M
+        isb
 	msr	sctlr_el1, x0
-	isb
 
-	/* Clean + invalidate the entire memory */
-	adrp	x0, __phys_offset
-	ldr	x0, [x0, :lo12:__phys_offset]
-	adrp	x1, __phys_end
-	ldr	x1, [x1, :lo12:__phys_end]
-	sub	x1, x1, x0
-	dcache_by_line_op civac, sy, x0, x1, x2, x3
+        b       clean_inval_cache
+
+ asm_mmu_disable_nvhe:
+        mrs     x0, sctlr_el2
+        bic     x0, x0, SCTLR_EL2_M
+        msr     sctlr_el2, x0
+        isb
+        b       clean_inval_cache
+ 
+ .globl asm_disable_vhe
+ asm_disable_vhe:
+        str     x30, [sp, #-16]!
+ 
+        bl      asm_mmu_disable
+        msr     hcr_el2, xzr
+        isb
+        bl      exceptions_init_nvhe
+        /* Make asm_mmu_enable_nvhe happy by having TTBR0 value in x0. */
+        mrs     x0, ttbr0_el2
+        isb
+        bl      asm_mmu_enable_nvhe
+ 
+        ldr     x30, [sp], #16
+        ret
+ 
+ .globl asm_enable_vhe
+ asm_enable_vhe:
+        str     x30, [sp, #-16]!
+ 
+        bl      asm_mmu_disable_nvhe
+        ldr     x0, =(HCR_EL2_E2H | HCR_EL2_TGE)
+        msr     hcr_el2, x0
+        isb
+        bl      exceptions_init
+        /* Make asm_mmu_enable happy by having TTBR0 value in x0. */
+        mrs     x0, ttbr0_el1
+        isb
+        bl      asm_mmu_enable
+ 
+        ldr     x30, [sp], #16
 
 	ret
 
@@ -389,6 +479,93 @@ vector_stub	el0_irq_32,   13
 vector_stub	el0_fiq_32,   14
 vector_stub	el0_error_32, 15
 
+.macro vector_stub_nvhe, name, vec
+\name:
+       stp      x0,  x1, [sp, #-S_FRAME_SIZE]!
+       stp      x2,  x3, [sp,  #16]
+       stp      x4,  x5, [sp,  #32]
+       stp      x6,  x7, [sp,  #48]
+       stp      x8,  x9, [sp,  #64]
+       stp     x10, x11, [sp,  #80]
+       stp     x12, x13, [sp,  #96]
+       stp     x14, x15, [sp, #112]
+       stp     x16, x17, [sp, #128]
+       stp     x18, x19, [sp, #144]
+       stp     x20, x21, [sp, #160]
+       stp     x22, x23, [sp, #176]
+       stp     x24, x25, [sp, #192]
+       stp     x26, x27, [sp, #208]
+       stp     x28, x29, [sp, #224]
+
+       str     x30, [sp, #S_LR]
+
+       .if \vec >= 8
+       mrs     x1, sp_el1
+       .else
+       add     x1, sp, #S_FRAME_SIZE
+       .endif
+       str     x1, [sp, #S_SP]
+
+       mrs     x1, elr_el2
+       mrs     x2, spsr_el2
+       stp     x1, x2, [sp, #S_PC]
+
+       mov     x0, \vec
+       mov     x1, sp
+       mrs     x2, esr_el2
+       bl      do_handle_exception
+
+       ldp     x1, x2, [sp, #S_PC]
+       msr     spsr_el2, x2
+       msr     elr_el2, x1
+
+       .if \vec >= 8
+       ldr     x1, [sp, #S_SP]
+       msr     sp_el1, x1
+       .endif
+
+       ldr     x30, [sp, #S_LR]
+
+       ldp     x28, x29, [sp, #224]
+       ldp     x26, x27, [sp, #208]
+       ldp     x24, x25, [sp, #192]
+       ldp     x22, x23, [sp, #176]
+       ldp     x20, x21, [sp, #160]
+       ldp     x18, x19, [sp, #144]
+       ldp     x16, x17, [sp, #128]
+       ldp     x14, x15, [sp, #112]
+       ldp     x12, x13, [sp,  #96]
+       ldp     x10, x11, [sp,  #80]
+       ldp      x8,  x9, [sp,  #64]
+       ldp      x6,  x7, [sp,  #48]
+       ldp      x4,  x5, [sp,  #32]
+       ldp      x2,  x3, [sp,  #16]
+       ldp      x0,  x1, [sp], #S_FRAME_SIZE
+
+       eret
+.endm
+
+vector_stub_nvhe       el2t_sync,     0
+vector_stub_nvhe       el2t_irq,      1
+vector_stub_nvhe       el2t_fiq,      2
+vector_stub_nvhe       el2t_error,    3
+
+vector_stub_nvhe       el2h_sync,     4
+vector_stub_nvhe       el2h_irq,      5
+vector_stub_nvhe       el2h_fiq,      6
+vector_stub_nvhe       el2h_error,    7
+
+vector_stub_nvhe       el1_sync_64,   8
+vector_stub_nvhe       el1_irq_64,    9
+vector_stub_nvhe       el1_fiq_64,   10
+vector_stub_nvhe       el1_error_64, 11
+
+vector_stub_nvhe       el1_sync_32,  12
+vector_stub_nvhe       el1_irq_32,   13
+vector_stub_nvhe       el1_fiq_32,   14
+vector_stub_nvhe       el1_error_32, 15
+
+
 .section .text.ex
 
 .macro ventry, label
@@ -417,3 +594,26 @@ vector_table:
 	ventry	el0_irq_32			// IRQ 32-bit EL0
 	ventry	el0_fiq_32			// FIQ 32-bit EL0
 	ventry	el0_error_32			// Error 32-bit EL0
+
+.align 11
+vector_table_nvhe:
+       ventry  el2t_sync                       // Synchronous EL2t
+       ventry  el2t_irq                        // IRQ EL2t
+       ventry  el2t_fiq                        // FIQ EL2t
+       ventry  el2t_error                      // Error EL2t
+
+       ventry  el2h_sync                       // Synchronous EL2h
+       ventry  el2h_irq                        // IRQ EL2h
+       ventry  el2h_fiq                        // FIQ EL2h
+       ventry  el2h_error                      // Error EL2h
+
+       ventry  el1_sync_64                     // Synchronous 64-bit EL1
+       ventry  el1_irq_64                      // IRQ 64-bit EL1
+       ventry  el1_fiq_64                      // FIQ 64-bit EL1
+       ventry  el1_error_64                    // Error 64-bit EL1
+
+       ventry  el1_sync_32                     // Synchronous 32-bit EL1
+       ventry  el1_irq_32                      // IRQ 32-bit EL1
+       ventry  el1_fiq_32                      // FIQ 32-bit EL1
+       ventry  el1_error_32                    // Error 32-bit EL1
+

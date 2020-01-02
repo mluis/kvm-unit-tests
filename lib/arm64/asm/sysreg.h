@@ -105,8 +105,15 @@ asm(
 #define SCTLR_EL1_A	(1 << 1)
 #define SCTLR_EL1_M	(1 << 0)
 
-#define HCR_EL2_TGE    (1 << 27)
-#define HCR_EL2_E2H    (_UL(1) << 34)
+#define HCR_EL2_TGE            (1 << 27)
+#define HCR_EL2_E2H_SHIFT      34
+#define HCR_EL2_E2H            (_UL(1) << 34)
+
+#define SCTLR_EL2_RES1         (3 << 28 | 3 << 22 | 1 << 18 |  \
+                                1 << 16 | 1 << 11 | 3 << 4)
+#define SCTLR_EL2_I            SCTLR_EL1_I
+#define SCTLR_EL2_C            SCTLR_EL1_C
+#define SCTLR_EL2_M            SCTLR_EL1_M
 
 #define SCTLR_EL1_RES1	(_BITUL(7) | _BITUL(8) | _BITUL(11) | _BITUL(20) | \
 			 _BITUL(22) | _BITUL(23) | _BITUL(28) | _BITUL(29))

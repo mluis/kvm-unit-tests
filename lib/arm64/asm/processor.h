@@ -51,6 +51,9 @@ extern void vector_handlers_default_init(vector_fn *handlers);
 extern void show_regs(struct pt_regs *regs);
 extern bool get_far(unsigned int esr, unsigned long *far);
 
+extern void disable_vhe(void);
+extern void enable_vhe(void);
+
 static inline unsigned long current_level(void)
 {
 	unsigned long el;
@@ -141,6 +144,11 @@ static inline bool vhe_enabled(void)
 {
        unsigned long hcr = read_sysreg(hcr_el2);
        return (hcr & HCR_EL2_E2H) && (hcr & HCR_EL2_TGE);
+}
+
+static inline bool cpu_el2_e2h_is_set(void)
+{
+       return read_sysreg(hcr_el2) & HCR_EL2_E2H;
 }
 
 #endif /* !__ASSEMBLY__ */

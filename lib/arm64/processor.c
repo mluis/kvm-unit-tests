@@ -84,7 +84,10 @@ bool get_far(unsigned int esr, unsigned long *far)
 {
 	unsigned int ec = esr >> ESR_EL1_EC_SHIFT;
 
-	asm volatile("mrs %0, far_el1": "=r" (*far));
+        if (current_level() == CurrentEL_EL2 && !cpu_el2_e2h_is_set())
+                asm volatile("mrs %0, far_el2": "=r" (*far));
+        else
+                asm volatile("mrs %0, far_el1": "=r" (*far));
 
 	switch (ec) {
 	case ESR_EL1_EC_IABT_EL0:
@@ -271,3 +274,36 @@ bool __mmu_enabled(void)
 {
 	return read_sysreg(sctlr_el1) & SCTLR_EL1_M;
 }
+
+extern void asm_disable_vhe(void);
+void disable_vhe(void)
+{
+       u64 daif;
+
+       assert(current_level() == CurrentEL_EL2 && vhe_enabled());
+
+       /*
+        * Make sure we don't take any exceptions while we run with the MMU off.
+        * On secondaries the stack is allocated from the vmalloc area, which
+        * means it isn't identity mapped, and the exception handling code uses
+        * it. Taking an exception in this case would be very bad.
+        */
+       asm volatile("mrs %0, daif" : "=r" (daif) : : "memory");
+       local_irq_disable();
+       asm_disable_vhe();
+       asm volatile("msr daif, %0" : : "r" (daif) : "memory");
+}
+
+extern void asm_enable_vhe(void);
+void enable_vhe(void)
+{
+       u64 daif;
+
+       assert(current_level() == CurrentEL_EL2 && !vhe_enabled());
+
+       asm volatile("mrs %0, daif" : "=r" (daif) : : "memory");
+       local_irq_disable();
+       asm_enable_vhe();
+       asm volatile("msr daif, %0" : : "r" (daif) : "memory");
+}
+
