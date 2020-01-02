@@ -11,7 +11,7 @@
 
 #include <asm/page.h>
 
-#define UL(x) _AC(x, UL)
+#include <linux/const.h>
 
 /*
  * The number of bits a given page table level, n (where n=0 is the top),
@@ -26,7 +26,7 @@
 #if PGTABLE_LEVELS > 2
 #define PMD_SHIFT		PGTABLE_LEVEL_SHIFT(2)
 #define PTRS_PER_PMD		PTRS_PER_PTE
-#define PMD_SIZE		(UL(1) << PMD_SHIFT)
+#define PMD_SIZE		(_UL(1) << PMD_SHIFT)
 #define PMD_MASK		(~(PMD_SIZE-1))
 #else
 #define PMD_SIZE		PGDIR_SIZE
@@ -36,7 +36,7 @@
 #if PGTABLE_LEVELS > 3
 #define PUD_SHIFT		PGTABLE_LEVEL_SHIFT(1)
 #define PTRS_PER_PUD		PTRS_PER_PTE
-#define PUD_SIZE		(UL(1) << PUD_SHIFT)
+#define PUD_SIZE		(_UL(1) << PUD_SHIFT)
 #define PUD_MASK		(~(PUD_SIZE-1))
 #else
 #define PUD_SIZE		PGDIR_SIZE
@@ -50,7 +50,7 @@
  * (depending on the configuration, this level can be 0, 1 or 2).
  */
 #define PGDIR_SHIFT		PGTABLE_LEVEL_SHIFT(4 - PGTABLE_LEVELS)
-#define PGDIR_SIZE		(_AC(1, UL) << PGDIR_SHIFT)
+#define PGDIR_SIZE		(_UL(1) << PGDIR_SHIFT)
 #define PGDIR_MASK		(~(PGDIR_SIZE-1))
 #define PTRS_PER_PGD		(1 << (VA_BITS - PGDIR_SHIFT))
 
@@ -60,7 +60,7 @@
  * Section address mask and size definitions.
  */
 #define SECTION_SHIFT		PMD_SHIFT
-#define SECTION_SIZE		(_AC(1, UL) << SECTION_SHIFT)
+#define SECTION_SIZE		(_UL(1) << SECTION_SHIFT)
 #define SECTION_MASK		(~(SECTION_SIZE-1))
 
 /*
@@ -119,32 +119,32 @@
  * Highest possible physical address supported.
  */
 #define PHYS_MASK_SHIFT		(48)
-#define PHYS_MASK		((UL(1) << PHYS_MASK_SHIFT) - 1)
+#define PHYS_MASK		((_UL(1) << PHYS_MASK_SHIFT) - 1)
 
 /*
  * TCR flags.
  */
-#define TCR_TxSZ(x)		(((UL(64) - (x)) << 16) | ((UL(64) - (x)) << 0))
-#define TCR_IRGN_NC		((UL(0) << 8) | (UL(0) << 24))
-#define TCR_IRGN_WBWA		((UL(1) << 8) | (UL(1) << 24))
-#define TCR_IRGN_WT		((UL(2) << 8) | (UL(2) << 24))
-#define TCR_IRGN_WBnWA		((UL(3) << 8) | (UL(3) << 24))
-#define TCR_IRGN_MASK		((UL(3) << 8) | (UL(3) << 24))
-#define TCR_ORGN_NC		((UL(0) << 10) | (UL(0) << 26))
-#define TCR_ORGN_WBWA		((UL(1) << 10) | (UL(1) << 26))
-#define TCR_ORGN_WT		((UL(2) << 10) | (UL(2) << 26))
-#define TCR_ORGN_WBnWA		((UL(3) << 10) | (UL(3) << 26))
-#define TCR_ORGN_MASK		((UL(3) << 10) | (UL(3) << 26))
-#define TCR_SHARED		((UL(3) << 12) | (UL(3) << 28))
-#define TCR_EPD1		(UL(1) << 23)
-#define TCR_TG0_4K		(UL(0) << 14)
-#define TCR_TG0_64K		(UL(1) << 14)
-#define TCR_TG0_16K		(UL(2) << 14)
-#define TCR_TG1_16K		(UL(1) << 30)
-#define TCR_TG1_4K		(UL(2) << 30)
-#define TCR_TG1_64K		(UL(3) << 30)
-#define TCR_ASID16		(UL(1) << 36)
-#define TCR_TBI0		(UL(1) << 37)
+#define TCR_TxSZ(x)		(((_UL(64) - (x)) << 16) | ((_UL(64) - (x)) << 0))
+#define TCR_IRGN_NC		((_UL(0) << 8) | (_UL(0) << 24))
+#define TCR_IRGN_WBWA		((_UL(1) << 8) | (_UL(1) << 24))
+#define TCR_IRGN_WT		((_UL(2) << 8) | (_UL(2) << 24))
+#define TCR_IRGN_WBnWA		((_UL(3) << 8) | (_UL(3) << 24))
+#define TCR_IRGN_MASK		((_UL(3) << 8) | (_UL(3) << 24))
+#define TCR_ORGN_NC		((_UL(0) << 10) | (_UL(0) << 26))
+#define TCR_ORGN_WBWA		((_UL(1) << 10) | (_UL(1) << 26))
+#define TCR_ORGN_WT		((_UL(2) << 10) | (_UL(2) << 26))
+#define TCR_ORGN_WBnWA		((_UL(3) << 10) | (_UL(3) << 26))
+#define TCR_ORGN_MASK		((_UL(3) << 10) | (_UL(3) << 26))
+#define TCR_SHARED		((_UL(3) << 12) | (_UL(3) << 28))
+#define TCR_EPD1		(_UL(1) << 23)
+#define TCR_TG0_4K		(_UL(0) << 14)
+#define TCR_TG0_64K		(_UL(1) << 14)
+#define TCR_TG0_16K		(_UL(2) << 14)
+#define TCR_TG1_16K		(_UL(1) << 30)
+#define TCR_TG1_4K		(_UL(2) << 30)
+#define TCR_TG1_64K		(_UL(3) << 30)
+#define TCR_ASID16		(_UL(1) << 36)
+#define TCR_TBI0		(_UL(1) << 37)
 
 /*
  * Memory types available.

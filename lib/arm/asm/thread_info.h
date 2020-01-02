@@ -7,6 +7,7 @@
  *
  * This work is licensed under the terms of the GNU GPL, version 2.
  */
+#include <linux/const.h>
 #include <asm/page.h>
 
 #define MIN_THREAD_SHIFT	14	/* THREAD_SIZE == 16K */
@@ -17,7 +18,7 @@
 #define THREAD_ALIGNMENT	PAGE_SIZE
 #else
 #define THREAD_SHIFT		MIN_THREAD_SHIFT
-#define THREAD_SIZE		(_AC(1,UL) << THREAD_SHIFT)
+#define THREAD_SIZE		(_UL(1) << THREAD_SHIFT)
 #define THREAD_MASK		(~(THREAD_SIZE-1))
 #define THREAD_ALIGNMENT	THREAD_SIZE
 #endif

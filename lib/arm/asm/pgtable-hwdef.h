@@ -8,10 +8,11 @@
  *
  * This work is licensed under the terms of the GNU GPL, version 2.
  */
+#include <linux/const.h>
 
 #define PTRS_PER_PGD		4
 #define PGDIR_SHIFT		30
-#define PGDIR_SIZE		(_AC(1,UL) << PGDIR_SHIFT)
+#define PGDIR_SIZE		(_UL(1) << PGDIR_SHIFT)
 #define PGDIR_MASK		(~((1 << PGDIR_SHIFT) - 1))
 
 #define PGD_VALID		(_AT(pgdval_t, 1) << 0)
@@ -24,7 +25,7 @@
 #define PUD_MASK		PGDIR_MASK
 
 #define PMD_SHIFT		21
-#define PMD_SIZE		(_AC(1,UL) << PMD_SHIFT)
+#define PMD_SIZE		(_UL(1) << PMD_SHIFT)
 #define PMD_MASK		(~((1 << PMD_SHIFT) - 1))
 
 #define L_PMD_SECT_VALID	(_AT(pmdval_t, 1) << 0)
@@ -114,14 +115,14 @@
  * 40-bit physical address supported.
  */
 #define PHYS_MASK_SHIFT		(40)
-#define PHYS_MASK		((_AC(1, ULL) << PHYS_MASK_SHIFT) - 1)
+#define PHYS_MASK		((_UL(1) << PHYS_MASK_SHIFT) - 1)
 
-#define TTBCR_IRGN0_WBWA	(_AC(1, UL) << 8)
-#define TTBCR_ORGN0_WBWA	(_AC(1, UL) << 10)
-#define TTBCR_SH0_SHARED	(_AC(3, UL) << 12)
-#define TTBCR_IRGN1_WBWA	(_AC(1, UL) << 24)
-#define TTBCR_ORGN1_WBWA	(_AC(1, UL) << 26)
-#define TTBCR_SH1_SHARED	(_AC(3, UL) << 28)
-#define TTBCR_EAE		(_AC(1, UL) << 31)
+#define TTBCR_IRGN0_WBWA	(_UL(1) << 8)
+#define TTBCR_ORGN0_WBWA	(_UL(1) << 10)
+#define TTBCR_SH0_SHARED	(_UL(3) << 12)
+#define TTBCR_IRGN1_WBWA	(_UL(1) << 24)
+#define TTBCR_ORGN1_WBWA	(_UL(1) << 26)
+#define TTBCR_SH1_SHARED	(_UL(3) << 28)
+#define TTBCR_EAE		(_UL(1) << 31)
 
 #endif /* _ASMARM_PGTABLE_HWDEF_H_ */

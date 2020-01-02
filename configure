@@ -422,7 +422,7 @@ cat <<EOF >> lib/config.h
 
 #define CONFIG_UART_EARLY_BASE ${arm_uart_early_addr}
 #define CONFIG_ERRATA_FORCE ${errata_force}
-#define CONFIG_PAGE_SIZE _AC(${page_size}, UL)
+#define CONFIG_PAGE_SIZE _UL(${page_size})
 
 EOF
 fi
