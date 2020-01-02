@@ -11,6 +11,7 @@
 #include <asm/timer.h>
 #include <asm/delay.h>
 #include <asm/processor.h>
+#include <asm/sysreg.h>
 #include <asm/gic.h>
 #include <asm/io.h>
 
@@ -61,6 +62,36 @@ static void write_vtimer_ctl(u64 val)
 	isb();
 }
 
+static u64 read_vtimer_cval_vhe(void)
+{
+       return read_sysreg_s(SYS_CNTV_CVAL_EL02);
+}
+
+static void write_vtimer_cval_vhe(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTV_CVAL_EL02);
+}
+
+static s32 read_vtimer_tval_vhe(void)
+{
+       return read_sysreg_s(SYS_CNTV_TVAL_EL02);
+}
+
+static void write_vtimer_tval_vhe(s32 val)
+{
+       write_sysreg_s(val, SYS_CNTV_TVAL_EL02);
+}
+
+static u64 read_vtimer_ctl_vhe(void)
+{
+       return read_sysreg_s(SYS_CNTV_CTL_EL02);
+}
+
+static void write_vtimer_ctl_vhe(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTV_CTL_EL02);
+}
+
 static u64 read_ptimer_counter(void)
 {
 	isb();
@@ -100,6 +131,36 @@ static void write_ptimer_ctl(u64 val)
 	isb();
 }
 
+static u64 read_ptimer_cval_vhe(void)
+{
+       return read_sysreg_s(SYS_CNTP_CVAL_EL02);
+}
+
+static void write_ptimer_cval_vhe(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTP_CVAL_EL02);
+}
+
+static s32 read_ptimer_tval_vhe(void)
+{
+       return read_sysreg_s(SYS_CNTP_TVAL_EL02);
+}
+
+static void write_ptimer_tval_vhe(s32 val)
+{
+       write_sysreg_s(val, SYS_CNTP_TVAL_EL02);
+}
+
+static u64 read_ptimer_ctl_vhe(void)
+{
+       return read_sysreg_s(SYS_CNTP_CTL_EL02);
+}
+
+static void write_ptimer_ctl_vhe(u64 val)
+{
+       write_sysreg_s(val, SYS_CNTP_CTL_EL02);
+}
+
 struct timer_info {
 	u32 irq;
 	volatile bool irq_received;
@@ -134,6 +195,30 @@ static struct timer_info ptimer_info = {
 	.write_ctl = write_ptimer_ctl,
 };
 
+static struct timer_info vtimer_info_vhe = {
+       .irq_received = false,
+       .read_counter = read_vtimer_counter,
+       .read_cval = read_vtimer_cval_vhe,
+       .write_cval = write_vtimer_cval_vhe,
+       .read_tval = read_vtimer_tval_vhe,
+       .write_tval = write_vtimer_tval_vhe,
+       .read_ctl = read_vtimer_ctl_vhe,
+       .write_ctl = write_vtimer_ctl_vhe,
+};
+
+static struct timer_info ptimer_info_vhe = {
+       .irq_received = false,
+       .read_counter = read_ptimer_counter,
+       .read_cval = read_ptimer_cval_vhe,
+       .write_cval = write_ptimer_cval_vhe,
+       .read_tval = read_ptimer_tval_vhe,
+       .write_tval = write_ptimer_tval_vhe,
+       .read_ctl = read_ptimer_ctl_vhe,
+       .write_ctl = write_ptimer_ctl_vhe,
+};
+
+static struct timer_info *vtimer, *ptimer;
+
 static void set_timer_irq_enabled(struct timer_info *info, bool enabled)
 {
 	u32 irq = PPI(info->irq);
@@ -150,10 +235,10 @@ static void irq_handler(struct pt_regs *regs)
 	u32 irqstat = gic_read_iar();
 	u32 irqnr = gic_iar_irqnr(irqstat);
 
-	if (irqnr == PPI(vtimer_info.irq)) {
-		info = &vtimer_info;
-	} else if (irqnr == PPI(ptimer_info.irq)) {
-		info = &ptimer_info;
+        if (irqnr == PPI(vtimer->irq)) {
+                info = vtimer;
+        } else if (irqnr == PPI(ptimer->irq)) {
+                info = ptimer;
 	} else {
 		if (irqnr != GICC_INT_SPURIOUS)
 			gic_write_eoir(irqstat);
@@ -330,7 +415,7 @@ static void test_timer(struct timer_info *info)
 static void test_vtimer(void)
 {
 	report_prefix_push("vtimer-busy-loop");
-	test_timer(&vtimer_info);
+	test_timer(vtimer);
 	report_prefix_pop();
 }
 
@@ -340,18 +425,28 @@ static void test_ptimer(void)
 		return;
 
 	report_prefix_push("ptimer-busy-loop");
-	test_timer(&ptimer_info);
+	test_timer(ptimer);
 	report_prefix_pop();
 }
 
 static void test_init(void)
 {
 	assert(TIMER_PTIMER_IRQ != -1 && TIMER_VTIMER_IRQ != -1);
-	ptimer_info.irq = TIMER_PTIMER_IRQ;
-	vtimer_info.irq = TIMER_VTIMER_IRQ;
+
+        if (current_level() == CurrentEL_EL1) {
+                vtimer = &vtimer_info;
+                ptimer = &ptimer_info;
+        } else {
+                vtimer = &vtimer_info_vhe;
+                ptimer = &ptimer_info_vhe;
+        }
+
+
+	ptimer->irq = TIMER_PTIMER_IRQ;
+	vtimer->irq = TIMER_VTIMER_IRQ;
 
 	install_exception_handler(EL1H_SYNC, ESR_EL1_EC_UNKNOWN, ptimer_unsupported_handler);
-	ptimer_info.read_ctl();
+	ptimer->read_ctl();
 	install_exception_handler(EL1H_SYNC, ESR_EL1_EC_UNKNOWN, NULL);
 
 	if (ptimer_unsupported && !ERRATA(7b6b46311a85)) {
@@ -364,8 +459,8 @@ static void test_init(void)
 	gic_enable_defaults();
 
 	install_irq_handler(EL1H_IRQ, irq_handler);
-	set_timer_irq_enabled(&ptimer_info, true);
-	set_timer_irq_enabled(&vtimer_info, true);
+	set_timer_irq_enabled(ptimer, true);
+	set_timer_irq_enabled(vtimer, true);
 	local_irq_enable();
 }
 
@@ -374,14 +469,14 @@ static void print_timer_info(void)
 	printf("CNTFRQ_EL0   : 0x%016lx\n", read_sysreg(cntfrq_el0));
 
 	if (!ptimer_unsupported) {
-		printf("CNTPCT_EL0   : 0x%016lx\n", ptimer_info.read_counter());
-		printf("CNTP_CTL_EL0 : 0x%016lx\n", ptimer_info.read_ctl());
-		printf("CNTP_CVAL_EL0: 0x%016lx\n", ptimer_info.read_cval());
+		printf("CNTPCT_EL0   : 0x%016lx\n", ptimer->read_counter());
+		printf("CNTP_CTL_EL0 : 0x%016lx\n", ptimer->read_ctl());
+		printf("CNTP_CVAL_EL0: 0x%016lx\n", ptimer->read_cval());
 	}
 
-	printf("CNTVCT_EL0   : 0x%016lx\n", vtimer_info.read_counter());
-	printf("CNTV_CTL_EL0 : 0x%016lx\n", vtimer_info.read_ctl());
-	printf("CNTV_CVAL_EL0: 0x%016lx\n", vtimer_info.read_cval());
+	printf("CNTVCT_EL0   : 0x%016lx\n", vtimer->read_counter());
+	printf("CNTV_CTL_EL0 : 0x%016lx\n", vtimer->read_ctl());
+	printf("CNTV_CVAL_EL0: 0x%016lx\n", vtimer->read_cval());
 }
 
 int main(int argc, char **argv)

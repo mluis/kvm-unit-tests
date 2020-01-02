@@ -25,6 +25,8 @@
 #define ESR_EL1_EC_ILL_ISS	(0x0E)
 #define ESR_EL1_EC_SVC32	(0x11)
 #define ESR_EL1_EC_SVC64	(0x15)
+#define ESR_EL2_EC_HVC64        (0x16)
+#define ESR_EL2_EC_SMC64        (0x17)
 #define ESR_EL1_EC_SYS64	(0x18)
 #define ESR_EL1_EC_IABT_EL0	(0x20)
 #define ESR_EL1_EC_IABT_EL1	(0x21)

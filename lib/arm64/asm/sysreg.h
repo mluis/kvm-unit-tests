@@ -13,6 +13,14 @@
 #define sys_reg(op0, op1, crn, crm, op2) \
 	((((op0)&3)<<19)|((op1)<<16)|((crn)<<12)|((crm)<<8)|((op2)<<5))
 
+#define SYS_CNTP_TVAL_EL02     sys_reg(3, 5, 14, 2, 0)
+#define SYS_CNTP_CTL_EL02      sys_reg(3, 5, 14, 2, 1)
+#define SYS_CNTP_CVAL_EL02     sys_reg(3, 5, 14, 2, 2)
+
+#define SYS_CNTV_TVAL_EL02     sys_reg(3, 5, 14, 3, 0)
+#define SYS_CNTV_CTL_EL02      sys_reg(3, 5, 14, 3, 1)
+#define SYS_CNTV_CVAL_EL02     sys_reg(3, 5, 14, 3, 2)
+
 #ifdef __ASSEMBLY__
 	.irp	num,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30
 	.equ	.L__reg_num_x\num, \num
@@ -88,6 +96,9 @@ asm(
 #define SCTLR_EL1_C	(1 << 2)
 #define SCTLR_EL1_A	(1 << 1)
 #define SCTLR_EL1_M	(1 << 0)
+
+#define HCR_EL2_TGE    (1 << 27)
+#define HCR_EL2_E2H    (_UL(1) << 34)
 
 #define SCTLR_EL1_RES1	(_BITUL(7) | _BITUL(8) | _BITUL(11) | _BITUL(20) | \
 			 _BITUL(22) | _BITUL(23) | _BITUL(28) | _BITUL(29))

@@ -59,7 +59,17 @@ start:
 	str	x8, [x4, x7]			// base[r_offset] = val
 	add	x5, x5, #24
 	b	1b
-
+1:
+        mrs     x4, CurrentEL
+        cmp     x4, CurrentEL_EL2
+        b.ne    1f
+        mrs     x4, mpidr_el1
+        msr     vmpidr_el2, x4
+        mrs     x4, midr_el1
+        msr     vpidr_el2, x4
+        ldr     x4, =(HCR_EL2_TGE | HCR_EL2_E2H)
+        msr     hcr_el2, x4
+        isb
 1:
 	/* zero BSS */
 	adrp	x4, bss
@@ -123,6 +133,12 @@ start:
  */
 .globl psci_invoke_hvc
 psci_invoke_hvc:
+        mrs     x9, CurrentEL
+        cmp     x9, CurrentEL_EL2
+        b.ne    1f
+        smc     #0
+        b       .
+1:
 	hvc	#0
 	ret
 
@@ -139,6 +155,17 @@ get_mmu_off:
 
 .globl secondary_entry
 secondary_entry:
+        mrs     x0, CurrentEL
+        cmp     x0, CurrentEL_EL2
+        b.ne    1f
+        mrs     x0, mpidr_el1
+        msr     vmpidr_el2, x0
+        mrs     x0, midr_el1
+        msr     vpidr_el2, x0
+        ldr     x0, =(HCR_EL2_TGE | HCR_EL2_E2H)
+        msr     hcr_el2, x0
+        isb
+1:
 	/* Enable FP/ASIMD */
 	mov	x0, #(3 << 20)
 	msr	cpacr_el1, x0
